@@ -4241,13 +4241,14 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 # Get last date amount spent
                 last_date = unique_dates[-1] if unique_dates else None
                 last_date_amount_spent = 0
+                last_date_purchases = 0
                 
                 if last_date:
                     last_date_data = campaign_group[campaign_group['Date'].astype(str) == last_date]
                     if not last_date_data.empty:
                         last_date_row = last_date_data.iloc[0]
                         last_date_amount_spent = round(last_date_row.get("Amount Spent (USD)", 0) if pd.notna(last_date_row.get("Amount Spent (USD)")) else 0, 2)
-                
+                        last_date_purchases = int(last_date_row.get("Purchases", 0) if pd.notna(last_date_row.get("Purchases")) else 0)
                 # Store in lookup
                 campaign_key = (str(product), str(campaign_name))
                 campaign_score_lookup[campaign_key] = {
@@ -4257,7 +4258,8 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                     'cpp': round(cpp, 2),
                     'be': round(be, 2),
                     'total_dates': len([d for d in campaign_group['Date'].unique() if pd.notna(d)]),
-                    'last_date_amount_spent': last_date_amount_spent
+                    'last_date_amount_spent': last_date_amount_spent,
+                    'last_date_purchases': last_date_purchases
                 }
         
         # Collect scalable campaigns (Score > 0)
@@ -4274,7 +4276,8 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                     'Total Purchases': campaign_data['total_purchases'],
                     'Score': campaign_data['score'],
                     'Total Dates': campaign_data['total_dates'],
-                    'Last Date Amount Spent (USD)': campaign_data['last_date_amount_spent']
+                    'Last Date Amount Spent (USD)': campaign_data['last_date_amount_spent'],
+                    'Last Date Purchases': campaign_data['last_date_purchases']
                 }
                 scalable_campaigns.append(scalable_campaign)
         
@@ -4296,7 +4299,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         
         # Headers
         scalable_headers = ["Product", "Campaign Name", "C.P.P", "B.E", "Total Amount Spent (USD)", 
-                           "Total Purchases", "Score", "Total Dates", "Last Date Amount Spent (USD)"]
+                           "Total Purchases", "Score", "Total Dates", "Last Date Amount Spent (USD)","Last Date Purchases"]
         
         for col_num, header in enumerate(scalable_headers):
             safe_write(scalable_sheet, current_row, col_num, header, moderate_scalable_header_format)
@@ -4314,6 +4317,8 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 safe_write(scalable_sheet, current_row, 6, campaign['Score'], moderate_scalable_data_format)
                 safe_write(scalable_sheet, current_row, 7, campaign['Total Dates'], moderate_scalable_data_format)
                 safe_write(scalable_sheet, current_row, 8, campaign['Last Date Amount Spent (USD)'], moderate_scalable_data_format)
+                safe_write(scalable_sheet, current_row, 9, campaign['Last Date Purchases'], moderate_scalable_data_format)
+                
                 current_row += 1
         else:
             safe_write(scalable_sheet, current_row, 0, "No campaigns found with Score between 0 and 2 and Amount Spent >= $10", moderate_scalable_data_format)
@@ -4356,7 +4361,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 safe_write(scalable_sheet, current_row, 6, campaign['Score'], moderate_scalable_data_format)
                 safe_write(scalable_sheet, current_row, 7, campaign['Total Dates'], moderate_scalable_data_format)
                 safe_write(scalable_sheet, current_row, 8, campaign['Last Date Amount Spent (USD)'], moderate_scalable_data_format)
-
+                safe_write(scalable_sheet, current_row, 9, campaign['Last Date Purchases'], moderate_scalable_data_format)
                 current_row += 1
         else:
             safe_write(scalable_sheet, current_row, 0, "No campaigns found with Score between 0 and 2 and Amount Spent < $10", moderate_scalable_data_format)
@@ -4399,6 +4404,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 safe_write(scalable_sheet, current_row, 6, campaign['Score'], high_scalable_data_format)
                 safe_write(scalable_sheet, current_row, 7, campaign['Total Dates'], high_scalable_data_format)
                 safe_write(scalable_sheet, current_row, 8, campaign['Last Date Amount Spent (USD)'], high_scalable_data_format)
+                safe_write(scalable_sheet, current_row, 9, campaign['Last Date Purchases'], high_scalable_data_format)
                 current_row += 1
         else:
             safe_write(scalable_sheet, current_row, 0, "No campaigns found with Score > 2 and Amount Spent >= $10", high_scalable_data_format)
@@ -4440,6 +4446,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 safe_write(scalable_sheet, current_row, 5, campaign['Total Purchases'], high_scalable_data_format)
                 safe_write(scalable_sheet, current_row, 6, campaign['Score'], high_scalable_data_format)
                 safe_write(scalable_sheet, current_row, 7, campaign['Total Dates'], high_scalable_data_format)
+                safe_write(scalable_sheet, current_row, 8, campaign['Last Date Amount Spent (USD)'], high_scalable_data_format)
                 safe_write(scalable_sheet, current_row, 8, campaign['Last Date Amount Spent (USD)'], high_scalable_data_format)
                 current_row += 1
         else:
@@ -4493,6 +4500,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         scalable_sheet.set_column(6, 6, 18)  # Score
         scalable_sheet.set_column(7, 7, 15)  # Total Dates
         scalable_sheet.set_column(8, 8, 25)
+        scalable_sheet.set_column(9, 9, 20)  # Last Date Purchases
         
         
         
