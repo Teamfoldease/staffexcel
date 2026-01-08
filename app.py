@@ -1733,7 +1733,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         # Add total columns
         for metric in date_metrics:
             all_columns.append(f"Total_{metric}")
-        
+        all_columns.append("Last Date Amount Spent (USD)")
         # Add Remark column at the end
         all_columns.append("Remark")
 
@@ -1841,6 +1841,8 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 continue
             elif col_name == "Remark":
                 safe_write(worksheet, 0, col_num, col_name, remark_header_format)
+            elif col_name == "Last Date Amount Spent (USD)":
+                safe_write(worksheet, 0, col_num, col_name, header_format)
             elif col_name.startswith("Total_"):
                 safe_write(worksheet, 0, col_num, col_name.replace("_", " "), total_header_format)
             elif "_" in col_name and col_name.split("_")[0] in unique_dates:
@@ -1889,7 +1891,9 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         # Set width for Remark column (find its index and set width)
         remark_col_idx = all_columns.index("Remark")
         worksheet.set_column(remark_col_idx, remark_col_idx, 35)  # Remark column
-
+        # Set width for Last Date Amount Spent column
+        last_date_amount_col_idx = all_columns.index("Last Date Amount Spent (USD)")
+        worksheet.set_column(last_date_amount_col_idx, last_date_amount_col_idx, 25)  # Last Date Amount Spent column
         # Configure outline settings
         worksheet.outline_settings(
             symbols_below=True,
@@ -2173,6 +2177,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                     
                     elif metric == "C.P.P (USD)":  # FIXED for zero purchases
                         # CALCULATED: Total Amount Spent / Total Purchases
+                        
                         total_amount_spent_col_idx = all_columns.index("Total_Amount Spent (USD)")
                         total_purchases_col_idx = all_columns.index("Total_Purchases")
                         total_amount_spent_ref = f"{xl_col_to_name(total_amount_spent_col_idx)}{excel_row}"
@@ -2235,7 +2240,19 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                                 f"={xl_col_to_name(single_date_col)}{excel_row}",
                                 campaign_format
                             )
+                # Add Last Date Amount Spent for campaign
+                last_date_amount_spent_col_idx = all_columns.index("Last Date Amount Spent (USD)")
+                last_date = unique_dates[-1] if unique_dates else None
                 
+                if last_date:
+                    last_date_amount_col = all_columns.index(f"{last_date}_Amount Spent (USD)")
+                    worksheet.write_formula(
+                        campaign_row_idx, last_date_amount_spent_col_idx,
+                        f"={xl_col_to_name(last_date_amount_col)}{excel_row}",
+                        campaign_format
+                    )
+                else:
+                    safe_write(worksheet, campaign_row_idx, last_date_amount_spent_col_idx, 0, campaign_format)
                 # Calculate base columns for campaign (link to total columns)
                 total_amount_spent_col_idx = all_columns.index("Total_Amount Spent (USD)")
                 total_purchases_col_idx = all_columns.index("Total_Purchases")
@@ -2543,7 +2560,25 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 break_even_formula,
                 grand_total_format
             )
+            # Add Last Date Amount Spent for grand total
+            last_date_amount_spent_col_idx = all_columns.index("Last Date Amount Spent (USD)")
+            last_date = unique_dates[-1] if unique_dates else None
             
+            if last_date and product_total_rows:
+                last_date_amount_col = all_columns.index(f"{last_date}_Amount Spent (USD)")
+                sum_refs = []
+                for product_row_idx in product_total_rows:
+                    product_excel_row = product_row_idx + 1
+                    sum_refs.append(f"{xl_col_to_name(last_date_amount_col)}{product_excel_row}")
+                
+                sum_formula = "+".join(sum_refs)
+                worksheet.write_formula(
+                    grand_total_row_idx, last_date_amount_spent_col_idx,
+                    f"={sum_formula}",
+                    grand_total_format
+                )
+            else:
+                safe_write(worksheet, grand_total_row_idx, last_date_amount_spent_col_idx, 0, grand_total_format)
             # Date-specific and total columns for grand total using INDIVIDUAL PRODUCT ROWS (ONLY VALID PRODUCTS)
             for date in unique_dates:
                 for metric in date_metrics:
