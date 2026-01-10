@@ -1812,6 +1812,13 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             else:
                 selected_days = 1
         
+        # NEW: Build Shopify product-wise lookup for Net Items Sold
+        shopify_product_net_items = {}
+        if shopify_df is not None and not shopify_df.empty:
+            for product, product_shopify_df in shopify_df.groupby("Canonical Product"):
+                total_net_items = product_shopify_df["Net items sold"].sum()
+                shopify_product_net_items[product] = total_net_items
+        
         # Define base columns for staff (CHANGED: "Cost Per Purchase" to "C.P.P" and "Break Even Point" to "B.E")
         base_columns = ["Product Name", "Campaign Name", "Total Amount Spent (USD)", "Purchases", "C.P.P", "B.E"]
         
@@ -1833,6 +1840,13 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         for metric in date_metrics:
             all_columns.append(f"Total_{metric}")
         all_columns.append("Last Date Amount Spent (USD)")
+        
+        # NEW: Add separator and 3 new comparison columns
+        all_columns.append("SEPARATOR_AFTER_LAST_DATE")
+        all_columns.append("Purchases (Campaign)")
+        all_columns.append("Net Items Sold (Shopify)")
+        all_columns.append("Deviation %")
+        
         # Add Remark column at the end
         all_columns.append("Remark")
 
@@ -1940,6 +1954,8 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 continue
             elif col_name == "Remark":
                 safe_write(worksheet, 0, col_num, col_name, remark_header_format)
+            elif col_name in ["Purchases (Campaign)", "Net Items Sold (Shopify)", "Deviation %"]:
+                safe_write(worksheet, 0, col_num, col_name, header_format)
             elif col_name == "Last Date Amount Spent (USD)":
                 safe_write(worksheet, 0, col_num, col_name, header_format)
             elif col_name.startswith("Total_"):
@@ -1961,7 +1977,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 
             data_cols_found = 0
             end_col = start_col
-            while end_col < total_columns and data_cols_found < 7:  # 6 metrics per date
+            while end_col < total_columns and data_cols_found < 7:  # 7 metrics per date
                 if not all_columns[end_col].startswith("SEPARATOR_"):
                     data_cols_found += 1
                 if data_cols_found < 7:
@@ -1986,6 +2002,14 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         worksheet.set_column(4, 4, 18)  # C.P.P
         worksheet.set_column(5, 5, 22)  # B.E
         worksheet.set_column(6, 6, 3)   # Separator column
+        
+        # Set width for new comparison columns
+        purchases_campaign_col_idx = all_columns.index("Purchases (Campaign)")
+        net_items_shopify_col_idx = all_columns.index("Net Items Sold (Shopify)")
+        deviation_col_idx = all_columns.index("Deviation %")
+        worksheet.set_column(purchases_campaign_col_idx, purchases_campaign_col_idx, 22)
+        worksheet.set_column(net_items_shopify_col_idx, net_items_shopify_col_idx, 25)
+        worksheet.set_column(deviation_col_idx, deviation_col_idx, 15)
         
         # Set width for Remark column (find its index and set width)
         remark_col_idx = all_columns.index("Remark")
@@ -2091,6 +2115,16 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             # Calculate totals for this product
             total_amount_spent_for_product = product_df["Amount Spent (USD)"].sum()
 
+            # NEW: Get Shopify net items sold for this product
+            shopify_net_items = shopify_product_net_items.get(product, 0)
+            
+            # NEW: Calculate deviation percentage
+            deviation_pct = 0
+            if shopify_net_items > 0:
+                deviation_pct = ((total_purchases_for_product - shopify_net_items) / shopify_net_items) * 100
+            elif total_purchases_for_product > 0:
+                deviation_pct = 100  # 100% deviation if Shopify has 0 but campaign has purchases
+
             # Product total row
             safe_write(worksheet, product_total_row_idx, 0, product, product_total_format)
             safe_write(worksheet, product_total_row_idx, 1, "ALL CAMPAIGNS (TOTAL)", product_total_format)
@@ -2098,6 +2132,18 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             # Add totals for product header only
             safe_write(worksheet, product_total_row_idx, 2, round(total_amount_spent_for_product, 2), product_total_format)
             safe_write(worksheet, product_total_row_idx, 3, total_purchases_for_product, product_total_format)
+            
+            # NEW: Add comparison columns for product total
+            purchases_campaign_col_idx = all_columns.index("Purchases (Campaign)")
+            net_items_shopify_col_idx = all_columns.index("Net Items Sold (Shopify)")
+            deviation_col_idx = all_columns.index("Deviation %")
+            
+            safe_write(worksheet, product_total_row_idx, purchases_campaign_col_idx, 
+                      total_purchases_for_product, product_total_format)
+            safe_write(worksheet, product_total_row_idx, net_items_shopify_col_idx, 
+                      shopify_net_items, product_total_format)
+            safe_write(worksheet, product_total_row_idx, deviation_col_idx, 
+                      round(deviation_pct, 2), product_total_format)
             
             # Add remark for products with zero total amount spent
             remark_col_idx = all_columns.index("Remark")
@@ -2150,6 +2196,15 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 safe_write(worksheet, campaign_row_idx, 3, "", campaign_format)
                 safe_write(worksheet, campaign_row_idx, 4, "", campaign_format)
                 safe_write(worksheet, campaign_row_idx, 5, "", campaign_format)
+                
+                # NEW: Leave comparison columns empty for campaigns (only at product level)
+                purchases_campaign_col_idx = all_columns.index("Purchases (Campaign)")
+                net_items_shopify_col_idx = all_columns.index("Net Items Sold (Shopify)")
+                deviation_col_idx = all_columns.index("Deviation %")
+                
+                safe_write(worksheet, campaign_row_idx, purchases_campaign_col_idx, "", campaign_format)
+                safe_write(worksheet, campaign_row_idx, net_items_shopify_col_idx, "", campaign_format)
+                safe_write(worksheet, campaign_row_idx, deviation_col_idx, "", campaign_format)
                 
                 # Add remark for campaigns (empty for individual campaigns)
                 remark_col_idx = all_columns.index("Remark")
@@ -2617,6 +2672,46 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             worksheet.write_formula(
                 grand_total_row_idx, 4,
                 f"={xl_col_to_name(total_cost_per_purchase_col_idx)}{grand_total_row_idx+1}",
+                grand_total_format
+            )
+            
+            # NEW: Add grand total comparison columns
+            purchases_campaign_col_idx = all_columns.index("Purchases (Campaign)")
+            net_items_shopify_col_idx = all_columns.index("Net Items Sold (Shopify)")
+            deviation_col_idx = all_columns.index("Deviation %")
+            
+            # Sum all product purchases for grand total
+            purchase_refs = []
+            shopify_refs = []
+            for product_row_idx in product_total_rows:
+                product_excel_row = product_row_idx + 1
+                purchase_refs.append(f"{xl_col_to_name(purchases_campaign_col_idx)}{product_excel_row}")
+                shopify_refs.append(f"{xl_col_to_name(net_items_shopify_col_idx)}{product_excel_row}")
+            
+            purchase_sum_formula = "+".join(purchase_refs)
+            shopify_sum_formula = "+".join(shopify_refs)
+            
+            worksheet.write_formula(
+                grand_total_row_idx, purchases_campaign_col_idx,
+                f"={purchase_sum_formula}",
+                grand_total_format
+            )
+            
+            worksheet.write_formula(
+                grand_total_row_idx, net_items_shopify_col_idx,
+                f"={shopify_sum_formula}",
+                grand_total_format
+            )
+            
+            # Calculate grand total deviation
+            grand_purchases_ref = f"{xl_col_to_name(purchases_campaign_col_idx)}{grand_total_row_idx+1}"
+            grand_shopify_ref = f"{xl_col_to_name(net_items_shopify_col_idx)}{grand_total_row_idx+1}"
+            
+            deviation_formula = f"=IF({grand_shopify_ref}=0,IF({grand_purchases_ref}=0,0,100),(({grand_purchases_ref}-{grand_shopify_ref})/{grand_shopify_ref})*100)"
+            
+            worksheet.write_formula(
+                grand_total_row_idx, deviation_col_idx,
+                deviation_formula,
                 grand_total_format
             )
             
