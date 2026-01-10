@@ -815,7 +815,6 @@ else:
     st.warning("⚠️ No campaign dates found. Using default value of 1 day.")
 
 
-
 def convert_shopify_to_excel_staff_with_date_columns_corrected(df, campaign_df=None):
     """Convert Shopify data to Excel for staff with date columns and CORRECTED ad spend distribution"""
     if df is None or df.empty:
@@ -849,37 +848,46 @@ def convert_shopify_to_excel_staff_with_date_columns_corrected(df, campaign_df=N
             "num_format": "#,##0.00"
         })
         
-       
+        # NEW: Formats for 3-part structure
+        # Part 1: Has delivery rate AND product cost data (Green)
+        has_data_product_format = workbook.add_format({
+            "bold": True, "align": "left", "valign": "vcenter",
+            "fg_color": "#90EE90", "font_name": "Calibri", "font_size": 11,
+            "num_format": "#,##0.00"
+        })
+        has_data_variant_format = workbook.add_format({
+            "align": "left", "valign": "vcenter",
+            "fg_color": "#E6FFE6", "font_name": "Calibri", "font_size": 11,
+            "num_format": "#,##0.00"
+        })
+        
+        # Part 2: NO delivery rate AND NO product cost data (Yellow/Orange)
+        no_data_product_format = workbook.add_format({
+            "bold": True, "align": "left", "valign": "vcenter",
+            "fg_color": "#FFD966", "font_name": "Calibri", "font_size": 11,
+            "num_format": "#,##0.00"
+        })
+        no_data_variant_format = workbook.add_format({
+            "align": "left", "valign": "vcenter",
+            "fg_color": "#FFF4CC", "font_name": "Calibri", "font_size": 11,
+            "num_format": "#,##0.00"
+        })
+        
+        # Part 3: Low net items (< 10) (Red)
+        low_items_product_format = workbook.add_format({
+            "bold": True, "align": "left", "valign": "vcenter",
+            "fg_color": "#DC4E23", "font_name": "Calibri", "font_size": 11,
+            "num_format": "#,##0.00"
+        })
+        low_items_variant_format = workbook.add_format({
+            "align": "left", "valign": "vcenter",
+            "fg_color": "#FFCCCB", "font_name": "Calibri", "font_size": 11,
+            "num_format": "#,##0.00"
+        })
         
         # Get unique dates and sort them
         unique_dates = sorted([str(d) for d in df['Date'].unique() if pd.notna(d) and str(d).strip() != ''])
         num_days = len(unique_dates)
-        
-        # Calculate dynamic threshold
-        dynamic_threshold = num_days * 1
-        
-        # Dynamic conditional formats based on calculated threshold (with two decimal places)
-        product_total_format_low = workbook.add_format({
-            "bold": True, "align": "left", "valign": "vcenter",
-            "fg_color": "#DC4E23", "font_name": "Calibri", "font_size": 11,  # Red
-            "num_format": "#,##0.00"
-        })
-        variant_format_low = workbook.add_format({
-            "align": "left", "valign": "vcenter",
-            "fg_color": "#FFCCCB", "font_name": "Calibri", "font_size": 11,  # Light red
-            "num_format": "#,##0.00"
-        })
-        
-        product_total_format_high = workbook.add_format({
-            "bold": True, "align": "left", "valign": "vcenter",
-            "fg_color": "#FFD966", "font_name": "Calibri", "font_size": 11,  # Default
-            "num_format": "#,##0.00"
-        })
-        variant_format_high = workbook.add_format({
-            "align": "left", "valign": "vcenter",
-            "fg_color": "#D9E1F2", "font_name": "Calibri", "font_size": 11,
-            "num_format": "#,##0.00"
-        })
 
         # Define base columns for staff
         base_columns = ["Product title", "Product variant title", "Delivery Rate", "Product Cost (Input)", "Total Net items sold", "Amount Spent", "C.P.I", "B.E"]
@@ -965,24 +973,83 @@ def convert_shopify_to_excel_staff_with_date_columns_corrected(df, campaign_df=N
         row = grand_total_row_idx + 1
         product_total_rows = []
 
-        # Group by product and restructure data
+        # NEW: Categorize products into 3 groups BEFORE writing
+        products_with_data = []  # Has delivery rate AND product cost
+        products_without_data = []  # No delivery rate AND no product cost
+        products_low_items = []  # Net items < 10
+
         for product, product_df in df.groupby("Product title"):
+            # Get canonical product name
+            canonical_product = product_df['Canonical Product'].iloc[0] if 'Canonical Product' in product_df.columns else product
+            
+            # Calculate total net items sold
+            total_net_items_for_product = product_df["Net items sold"].sum()
+            
+            # Check if product has delivery rate and product cost data
+            has_delivery_rate = False
+            has_product_cost = False
+            
+            for date in unique_dates:
+                date_delivery_rate = product_date_delivery_rates.get(canonical_product, {}).get(date, 0)
+                date_cost_input = product_date_cost_inputs.get(canonical_product, {}).get(date, 0)
+                
+                if date_delivery_rate > 0:
+                    has_delivery_rate = True
+                if date_cost_input > 0:
+                    has_product_cost = True
+            
+            # Categorize based on priority:
+            # 1. Low items (< 10) goes to bottom
+            # 2. Has both delivery rate AND product cost goes to top
+            # 3. Otherwise, no data group goes to middle
+            
+            if total_net_items_for_product < 10:
+                products_low_items.append((product, product_df, total_net_items_for_product))
+            elif has_delivery_rate and has_product_cost:
+                products_with_data.append((product, product_df, total_net_items_for_product))
+            else:
+                products_without_data.append((product, product_df, total_net_items_for_product))
+
+        # Sort each group by total net items sold (descending)
+        products_with_data.sort(key=lambda x: x[2], reverse=True)
+        products_without_data.sort(key=lambda x: x[2], reverse=True)
+        products_low_items.sort(key=lambda x: x[2], reverse=True)
+
+        # Combine in order: with data (TOP), without data (MIDDLE), low items (BOTTOM)
+        all_products_ordered = products_with_data + products_without_data + products_low_items
+
+        # Group by product and restructure data (NOW USING NEW 3-PART ORDER)
+        for product, product_df, total_net_items_for_product in all_products_ordered:
             # Get canonical product name for campaign lookup
             canonical_product = product_df['Canonical Product'].iloc[0] if 'Canonical Product' in product_df.columns else product
             
             product_total_row_idx = row
             product_total_rows.append(product_total_row_idx)
 
-            # Calculate total net items sold for dynamic formatting
-            total_net_items_for_product = product_df["Net items sold"].sum()
-            
-            # Dynamic color assignment based on threshold
-            if total_net_items_for_product < dynamic_threshold:
-                product_total_format = product_total_format_low
-                variant_format = variant_format_low
+            # DETERMINE WHICH FORMAT TO USE based on categorization
+            if total_net_items_for_product < 10:
+                product_total_format = low_items_product_format
+                variant_format = low_items_variant_format
             else:
-                product_total_format = product_total_format_high
-                variant_format = variant_format_high
+                # Check if has data
+                has_delivery_rate = False
+                has_product_cost = False
+                
+                for date in unique_dates:
+                    date_delivery_rate = product_date_delivery_rates.get(canonical_product, {}).get(date, 0)
+                    date_cost_input = product_date_cost_inputs.get(canonical_product, {}).get(date, 0)
+                    
+                    if date_delivery_rate > 0:
+                        has_delivery_rate = True
+                    if date_cost_input > 0:
+                        has_product_cost = True
+                
+                if has_delivery_rate and has_product_cost:
+                    product_total_format = has_data_product_format
+                    variant_format = has_data_variant_format
+                else:
+                    product_total_format = no_data_product_format
+                    variant_format = no_data_variant_format
 
             # Product total row
             safe_write(worksheet, product_total_row_idx, 0, product, product_total_format)
