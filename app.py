@@ -54,7 +54,6 @@ def safe_write(worksheet, row, col, value, cell_format=None):
 def read_file(file):
     """Helper function to read uploaded file"""
     try:
-        file.seek(0)
         if file.name.endswith(".csv"):
             return pd.read_csv(file, quotechar='"', skipinitialspace=True)
         else:
@@ -1813,8 +1812,10 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             else:
                 selected_days = 1
         
-        # NEW: Build Shopify product-wise lookup for Net Items Sold (DIRECT from raw file)
+        # NEW: Build Shopify product-wise lookup for Net Items Sold (DIRECT from raw file WITH FUZZY MATCHING)
         shopify_product_net_items = {}
+        shopify_raw_product_names = []  # Store raw Shopify product names
+        
         if shopify_files:  # Use the RAW uploaded files directly
             for shopify_file in shopify_files:
                 # Read the raw Shopify file
@@ -1833,12 +1834,46 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                                 shopify_product_net_items[product_key] += int(total_net_items)
                             else:
                                 shopify_product_net_items[product_key] = int(total_net_items)
-
+                            
+                            # Store raw product name for fuzzy matching
+                            if product_key not in shopify_raw_product_names:
+                                shopify_raw_product_names.append(product_key)
+            
             # DEBUG: Show what we have
             st.info(f"📊 Built Shopify lookup with {len(shopify_product_net_items)} products")
             if len(shopify_product_net_items) > 0:
                 st.write("**Sample Shopify products:**", list(shopify_product_net_items.keys())[:5])
                 st.write("**Sample values:**", {k: shopify_product_net_items[k] for k in list(shopify_product_net_items.keys())[:3]})
+            
+            # FUZZY MATCHING: Create a mapping from Campaign product names to Shopify product names
+            # Using THE EXACT SAME fuzzy matching approach as your existing campaign processing
+            shopify_product_fuzzy_mapping = {}
+            
+            # Get all unique campaign product names from df_campaign
+            if df_campaign is not None and 'Canonical Product' in df_campaign.columns:
+                campaign_products = df_campaign['Canonical Product'].unique().tolist()
+                
+                st.info(f"🔍 Starting fuzzy matching for {len(campaign_products)} campaign products against {len(shopify_raw_product_names)} Shopify products...")
+                
+                # For each campaign product, find best match in Shopify products
+                for campaign_product in campaign_products:
+                    campaign_product_clean = str(campaign_product).strip()
+                    
+                    # Use the SAME fuzzy matching function and threshold (85) that's working in your campaign processing
+                    result = process.extractOne(
+                        campaign_product_clean, 
+                        shopify_raw_product_names, 
+                        scorer=fuzz.token_sort_ratio, 
+                        score_cutoff=85  # Same threshold as your campaign fuzzy matching
+                    )
+                    
+                    if result:
+                        matched_shopify_product = result[0]
+                        match_score = result[1]
+                        shopify_product_fuzzy_mapping[campaign_product_clean] = matched_shopify_product
+                        st.success(f"✅ Matched ({match_score}%): '{campaign_product_clean}' → '{matched_shopify_product}'")
+                    else:
+                        st.warning(f"⚠️ No match found for campaign product: '{campaign_product_clean}'")
         # Define base columns for staff (CHANGED: "Cost Per Purchase" to "C.P.P" and "Break Even Point" to "B.E")
         base_columns = ["Product Name", "Campaign Name", "Total Amount Spent (USD)", "Purchases", "C.P.P", "B.E"]
         
@@ -2138,13 +2173,13 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             # NEW: Get Shopify net items sold for this product
             # NEW: Get Shopify net items sold for this product
             product_normalized = str(product).strip()
-            shopify_net_items = shopify_product_net_items.get(product_normalized, 0)
+            shopify_product_matched = shopify_product_fuzzy_mapping.get(product_normalized, None)
 
 # DEBUG: Show lookups
-            if shopify_net_items == 0:
-              st.warning(f"⚠️ No Shopify data for campaign product: '{product_normalized}'")
+            if shopify_product_matched:
+                    shopify_net_items = shopify_product_net_items.get(shopify_product_matched, 0)
             else:
-              st.success(f"✅ Found Shopify data for '{product_normalized}': {shopify_net_items} items")
+                    shopify_net_items = 0
             
             # NEW: Calculate deviation percentage
             deviation_pct = 0
