@@ -1815,14 +1815,16 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         # NEW: Build Shopify product-wise lookup for Net Items Sold
         shopify_product_net_items = {}
         if shopify_df is not None and not shopify_df.empty:
-            for product, product_shopify_df in shopify_df.groupby("Canonical Product"):
-                total_net_items = product_shopify_df["Net items sold"].sum()
-                shopify_product_net_items[product] = int(total_net_items)
-            # DEBUG: Show what we have
+    # Group by Product title (original Shopify product name) instead of Canonical Product
+            for product_title, product_shopify_df in shopify_df.groupby("Product title"):
+              total_net_items = product_shopify_df["Net items sold"].sum()
+              shopify_product_net_items[str(product_title).strip()] = int(total_net_items)
+    
+    # DEBUG: Show what we have
             st.info(f"📊 Built Shopify lookup with {len(shopify_product_net_items)} products")
             if len(shopify_product_net_items) > 0:
-              st.write("**Sample Shopify products:**", list(shopify_product_net_items.keys())[:5])
-              st.write("**Sample values:**", {k: shopify_product_net_items[k] for k in list(shopify_product_net_items.keys())[:3]})
+               st.write("**Sample Shopify products:**", list(shopify_product_net_items.keys())[:5])
+               st.write("**Sample values:**", {k: shopify_product_net_items[k] for k in list(shopify_product_net_items.keys())[:3]})
         # Define base columns for staff (CHANGED: "Cost Per Purchase" to "C.P.P" and "Break Even Point" to "B.E")
         base_columns = ["Product Name", "Campaign Name", "Total Amount Spent (USD)", "Purchases", "C.P.P", "B.E"]
         
