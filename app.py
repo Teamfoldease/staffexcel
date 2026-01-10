@@ -1812,19 +1812,32 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             else:
                 selected_days = 1
         
-        # NEW: Build Shopify product-wise lookup for Net Items Sold
+        # NEW: Build Shopify product-wise lookup for Net Items Sold (DIRECT from raw file)
         shopify_product_net_items = {}
-        if shopify_df is not None and not shopify_df.empty:
-    # Group by Product title (original Shopify product name) instead of Canonical Product
-            for product_title, product_shopify_df in shopify_df.groupby("Product title"):
-              total_net_items = product_shopify_df["Net items sold"].sum()
-              shopify_product_net_items[str(product_title).strip()] = int(total_net_items)
-    
-    # DEBUG: Show what we have
+        if shopify_files:  # Use the RAW uploaded files directly
+            for shopify_file in shopify_files:
+                # Read the raw Shopify file
+                shopify_raw_df = read_file(shopify_file)
+                
+                if shopify_raw_df is not None and not shopify_raw_df.empty:
+                    # Check if required columns exist
+                    if "Product title" in shopify_raw_df.columns and "Net items sold" in shopify_raw_df.columns:
+                        # Group by Product title and SUM Net items sold
+                        for product_title, group_df in shopify_raw_df.groupby("Product title"):
+                            total_net_items = group_df["Net items sold"].sum()
+                            
+                            # Add to lookup (or accumulate if product exists in multiple files)
+                            product_key = str(product_title).strip()
+                            if product_key in shopify_product_net_items:
+                                shopify_product_net_items[product_key] += int(total_net_items)
+                            else:
+                                shopify_product_net_items[product_key] = int(total_net_items)
+
+            # DEBUG: Show what we have
             st.info(f"📊 Built Shopify lookup with {len(shopify_product_net_items)} products")
             if len(shopify_product_net_items) > 0:
-               st.write("**Sample Shopify products:**", list(shopify_product_net_items.keys())[:5])
-               st.write("**Sample values:**", {k: shopify_product_net_items[k] for k in list(shopify_product_net_items.keys())[:3]})
+                st.write("**Sample Shopify products:**", list(shopify_product_net_items.keys())[:5])
+                st.write("**Sample values:**", {k: shopify_product_net_items[k] for k in list(shopify_product_net_items.keys())[:3]})
         # Define base columns for staff (CHANGED: "Cost Per Purchase" to "C.P.P" and "Break Even Point" to "B.E")
         base_columns = ["Product Name", "Campaign Name", "Total Amount Spent (USD)", "Purchases", "C.P.P", "B.E"]
         
