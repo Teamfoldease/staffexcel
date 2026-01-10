@@ -10,7 +10,10 @@ import openpyxl
 
 st.title("📊 Staff Campaign + Shopify Data Processor with Date Columns")
 st.markdown("**Staff version with multiple file uploads and date-based column grouping for score calculation!**")
-
+# FIX: Initialize session state to avoid errors
+if 'initialized' not in st.session_state:
+    st.session_state.initialized = True
+    
 # ---- MULTIPLE FILE UPLOADS ----
 st.subheader("📁 Upload Campaign Data Files")
 campaign_files = st.file_uploader(
@@ -2196,9 +2199,9 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             # NEW: Calculate deviation percentage
             deviation_pct = 0
             if shopify_net_items > 0:
-                deviation_pct = ((total_purchases_for_product - shopify_net_items) / shopify_net_items) * 100
+                deviation_pct = ((shopify_net_items - total_purchases_for_product) / shopify_net_items) * 100
             elif total_purchases_for_product > 0:
-                deviation_pct = 100  # 100% deviation if Shopify has 0 but campaign has purchases
+                deviation_pct = -100  # 100% deviation if Shopify has 0 but campaign has purchases
 
             # Product total row
             safe_write(worksheet, product_total_row_idx, 0, product, product_total_format)
@@ -2213,12 +2216,26 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             net_items_shopify_col_idx = all_columns.index("Net Items Sold (Shopify)")
             deviation_col_idx = all_columns.index("Deviation %")
             
+            # Define red format for high deviation
+            red_deviation_format = workbook.add_format({
+                "bold": True, "align": "left", "valign": "vcenter",
+                "fg_color": "#FF0000", "font_color": "#FFFFFF",  # Red background, white text
+                "font_name": "Calibri", "font_size": 11,
+                "num_format": "#,##0.00"
+            })
+            
             safe_write(worksheet, product_total_row_idx, purchases_campaign_col_idx, 
                       total_purchases_for_product, product_total_format)
             safe_write(worksheet, product_total_row_idx, net_items_shopify_col_idx, 
                       shopify_net_items, product_total_format)
-            safe_write(worksheet, product_total_row_idx, deviation_col_idx, 
-                      round(deviation_pct, 2), product_total_format)
+            
+            # Write deviation with conditional red formatting if |deviation| > 10%
+            if abs(deviation_pct) > 10:
+                safe_write(worksheet, product_total_row_idx, deviation_col_idx, 
+                          round(deviation_pct, 2), red_deviation_format)
+            else:
+                safe_write(worksheet, product_total_row_idx, deviation_col_idx, 
+                          round(deviation_pct, 2), product_total_format)
             
             # Add remark for products with zero total amount spent
             remark_col_idx = all_columns.index("Remark")
@@ -2779,16 +2796,33 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             )
             
             # Calculate grand total deviation
+            # Calculate grand total deviation (Shopify - Campaign) / Shopify * 100
             grand_purchases_ref = f"{xl_col_to_name(purchases_campaign_col_idx)}{grand_total_row_idx+1}"
             grand_shopify_ref = f"{xl_col_to_name(net_items_shopify_col_idx)}{grand_total_row_idx+1}"
             
-            deviation_formula = f"=IF({grand_shopify_ref}=0,IF({grand_purchases_ref}=0,0,100),(({grand_purchases_ref}-{grand_shopify_ref})/{grand_shopify_ref})*100)"
+            deviation_formula = f"=IF({grand_shopify_ref}=0,IF({grand_purchases_ref}=0,0,-100),(({grand_shopify_ref}-{grand_purchases_ref})/{grand_shopify_ref})*100)"
             
             worksheet.write_formula(
                 grand_total_row_idx, deviation_col_idx,
                 deviation_formula,
                 grand_total_format
             )
+            
+            # Apply conditional formatting to highlight red if |deviation| > 10%
+            worksheet.conditional_format(grand_total_row_idx, deviation_col_idx, 
+                                        grand_total_row_idx, deviation_col_idx, {
+                'type': 'cell',
+                'criteria': 'greater than',
+                'value': 10,
+                'format': red_deviation_format
+            })
+            worksheet.conditional_format(grand_total_row_idx, deviation_col_idx, 
+                                        grand_total_row_idx, deviation_col_idx, {
+                'type': 'cell',
+                'criteria': 'less than',
+                'value': -10,
+                'format': red_deviation_format
+            })
             
             # B.E (Break Even) for grand total - CALCULATE ONCE FOR GRAND TOTAL (FIXED for zero purchases)
             total_avg_price_col_idx = all_columns.index("Total_Avg Price")
