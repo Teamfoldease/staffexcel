@@ -863,7 +863,13 @@ def convert_shopify_to_excel_staff_with_date_columns_corrected(df, campaign_df=N
             "fg_color": "#EEEE0E", "font_name": "Calibri", "font_size": 11,
             "num_format": "#,##0.00"
         })
-        
+        # Define red format for high negative deviation
+        red_deviation_format = workbook.add_format({
+            "bold": True, "align": "left", "valign": "vcenter",
+            "fg_color": "#FF0000", "font_color": "#FFFFFF",  # Red background, white text
+            "font_name": "Calibri", "font_size": 11,
+            "num_format": "#,##0.00"
+         })
         # NEW: Formats for 3-part structure
         # Part 1: Has delivery rate AND product cost data (Green)
         has_data_product_format = workbook.add_format({
@@ -2227,13 +2233,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             net_items_shopify_col_idx = all_columns.index("Net Items Sold (Shopify)")
             deviation_col_idx = all_columns.index("Deviation %")
             
-            # Define red format for high deviation
-            red_deviation_format = workbook.add_format({
-                "bold": True, "align": "left", "valign": "vcenter",
-                "fg_color": "#FF0000", "font_color": "#FFFFFF",  # Red background, white text
-                "font_name": "Calibri", "font_size": 11,
-                "num_format": "#,##0.00"
-            })
+            
             
             safe_write(worksheet, product_total_row_idx, purchases_campaign_col_idx, 
                       total_purchases_for_product, product_total_format)
