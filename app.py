@@ -1817,8 +1817,12 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         if shopify_df is not None and not shopify_df.empty:
             for product, product_shopify_df in shopify_df.groupby("Canonical Product"):
                 total_net_items = product_shopify_df["Net items sold"].sum()
-                shopify_product_net_items[product] = total_net_items
-        
+                shopify_product_net_items[product] = int(total_net_items)
+            # DEBUG: Show what we have
+            st.info(f"📊 Built Shopify lookup with {len(shopify_product_net_items)} products")
+            if len(shopify_product_net_items) > 0:
+              st.write("**Sample Shopify products:**", list(shopify_product_net_items.keys())[:5])
+              st.write("**Sample values:**", {k: shopify_product_net_items[k] for k in list(shopify_product_net_items.keys())[:3]})
         # Define base columns for staff (CHANGED: "Cost Per Purchase" to "C.P.P" and "Break Even Point" to "B.E")
         base_columns = ["Product Name", "Campaign Name", "Total Amount Spent (USD)", "Purchases", "C.P.P", "B.E"]
         
@@ -2116,7 +2120,15 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             total_amount_spent_for_product = product_df["Amount Spent (USD)"].sum()
 
             # NEW: Get Shopify net items sold for this product
-            shopify_net_items = shopify_product_net_items.get(product, 0)
+            # NEW: Get Shopify net items sold for this product
+            product_normalized = str(product).strip()
+            shopify_net_items = shopify_product_net_items.get(product_normalized, 0)
+
+# DEBUG: Show lookups
+            if shopify_net_items == 0:
+              st.warning(f"⚠️ No Shopify data for campaign product: '{product_normalized}'")
+            else:
+              st.success(f"✅ Found Shopify data for '{product_normalized}': {shopify_net_items} items")
             
             # NEW: Calculate deviation percentage
             deviation_pct = 0
