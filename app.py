@@ -361,12 +361,18 @@ if campaign_files:
         st.write(df_campaign)
 
         # ---- CLEAN PRODUCT NAME ----
+        # ---- CLEAN PRODUCT NAME ----
         def clean_product_name(name: str) -> str:
             text = str(name).strip()
-            match = re.split(r"[-/|]|\s[xX]\s", text, maxsplit=1)
+            
+            # FIXED: Don't split on hyphens that are part of product names like "2-in-1"
+            # Only split on specific delimiters: pipe (|), forward slash (/), or " x "
+            match = re.split(r"[/|]|\s[xX]\s", text, maxsplit=1)
             base = match[0] if match else text
+            
             base = base.lower()
-            base = re.sub(r'[^a-z0-9 ]', '', base)
+            # Keep hyphens in product names
+            base = re.sub(r'[^a-z0-9 -]', '', base)  # CHANGED: Added hyphen to allowed characters
             base = re.sub(r'\s+', ' ', base)
             return base.strip().title()
 
@@ -513,10 +519,15 @@ if shopify_files:
         # ---- CLEAN SHOPIFY PRODUCT TITLES TO MATCH CAMPAIGN ----
         def clean_product_name(name: str) -> str:
             text = str(name).strip()
-            match = re.split(r"[-/|]|\s[xX]\s", text, maxsplit=1)
+            
+            # FIXED: Don't split on hyphens that are part of product names like "2-in-1"
+            # Only split on specific delimiters: pipe (|), forward slash (/), or " x "
+            match = re.split(r"[/|]|\s[xX]\s", text, maxsplit=1)
             base = match[0] if match else text
+            
             base = base.lower()
-            base = re.sub(r'[^a-z0-9 ]', '', base)
+            # Keep hyphens in product names
+            base = re.sub(r'[^a-z0-9 -]', '', base)  # CHANGED: Added hyphen to allowed characters
             base = re.sub(r'\s+', ' ', base)
             return base.strip().title()
 
