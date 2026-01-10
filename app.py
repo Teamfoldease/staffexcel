@@ -815,6 +815,7 @@ else:
     st.warning("⚠️ No campaign dates found. Using default value of 1 day.")
 
 
+
 def convert_shopify_to_excel_staff_with_date_columns_corrected(df, campaign_df=None):
     """Convert Shopify data to Excel for staff with date columns and CORRECTED ad spend distribution"""
     if df is None or df.empty:
@@ -985,10 +986,12 @@ def convert_shopify_to_excel_staff_with_date_columns_corrected(df, campaign_df=N
             # Calculate total net items sold
             total_net_items_for_product = product_df["Net items sold"].sum()
             
-            # Check if product has delivery rate and product cost data
+            # FIXED: Check if product has delivery rate and product cost data
+            # Check BOTH day-wise lookups AND actual variant data from DataFrame
             has_delivery_rate = False
             has_product_cost = False
             
+            # First, check day-wise lookup dictionaries
             for date in unique_dates:
                 date_delivery_rate = product_date_delivery_rates.get(canonical_product, {}).get(date, 0)
                 date_cost_input = product_date_cost_inputs.get(canonical_product, {}).get(date, 0)
@@ -996,6 +999,21 @@ def convert_shopify_to_excel_staff_with_date_columns_corrected(df, campaign_df=N
                 if date_delivery_rate > 0:
                     has_delivery_rate = True
                 if date_cost_input > 0:
+                    has_product_cost = True
+            
+            # CRITICAL FIX: Also check the actual DataFrame data
+            # This catches cases where you manually filled values in base columns
+            for _, variant_row in product_df.iterrows():
+                delivery_rate = variant_row.get("Delivery Rate", 0) or 0
+                product_cost = variant_row.get("Product Cost (Input)", 0) or 0
+                
+                # Convert to numeric and handle any string values
+                delivery_rate = pd.to_numeric(delivery_rate, errors='coerce') or 0
+                product_cost = pd.to_numeric(product_cost, errors='coerce') or 0
+                
+                if delivery_rate > 0:
+                    has_delivery_rate = True
+                if product_cost > 0:
                     has_product_cost = True
             
             # Categorize based on priority:
@@ -1031,10 +1049,11 @@ def convert_shopify_to_excel_staff_with_date_columns_corrected(df, campaign_df=N
                 product_total_format = low_items_product_format
                 variant_format = low_items_variant_format
             else:
-                # Check if has data
+                # FIXED: Check if has data - check BOTH lookups AND DataFrame
                 has_delivery_rate = False
                 has_product_cost = False
                 
+                # Check day-wise lookup dictionaries
                 for date in unique_dates:
                     date_delivery_rate = product_date_delivery_rates.get(canonical_product, {}).get(date, 0)
                     date_cost_input = product_date_cost_inputs.get(canonical_product, {}).get(date, 0)
@@ -1042,6 +1061,20 @@ def convert_shopify_to_excel_staff_with_date_columns_corrected(df, campaign_df=N
                     if date_delivery_rate > 0:
                         has_delivery_rate = True
                     if date_cost_input > 0:
+                        has_product_cost = True
+                
+                # CRITICAL FIX: Also check the actual DataFrame data
+                for _, variant_row in product_df.iterrows():
+                    delivery_rate = variant_row.get("Delivery Rate", 0) or 0
+                    product_cost = variant_row.get("Product Cost (Input)", 0) or 0
+                    
+                    # Convert to numeric and handle any string values
+                    delivery_rate = pd.to_numeric(delivery_rate, errors='coerce') or 0
+                    product_cost = pd.to_numeric(product_cost, errors='coerce') or 0
+                    
+                    if delivery_rate > 0:
+                        has_delivery_rate = True
+                    if product_cost > 0:
                         has_product_cost = True
                 
                 if has_delivery_rate and has_product_cost:
@@ -1697,7 +1730,6 @@ def convert_shopify_to_excel_staff_with_date_columns_corrected(df, campaign_df=N
         worksheet.freeze_panes(2, len(base_columns))
     
     return output.getvalue()
-
 
 
 
