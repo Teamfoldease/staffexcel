@@ -54,6 +54,7 @@ def safe_write(worksheet, row, col, value, cell_format=None):
 def read_file(file):
     """Helper function to read uploaded file"""
     try:
+        file.seek(0)
         if file.name.endswith(".csv"):
             return pd.read_csv(file, quotechar='"', skipinitialspace=True)
         else:
