@@ -55,7 +55,7 @@ def read_file(file):
     """Helper function to read uploaded file"""
     try:
         if file.name.endswith(".csv"):
-            return pd.read_csv(file)
+            return pd.read_csv(file, quotechar='"', skipinitialspace=True)
         else:
             return pd.read_excel(file)
     except Exception as e:
