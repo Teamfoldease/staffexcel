@@ -2241,7 +2241,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                       shopify_net_items, product_total_format)
             
             # Write deviation with conditional red formatting if |deviation| > 10%
-            if abs(deviation_pct) > 10:
+            if abs(deviation_pct) < -10:
                 safe_write(worksheet, product_total_row_idx, deviation_col_idx, 
                           round(deviation_pct, 2), red_deviation_format)
             else:
@@ -2819,14 +2819,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 grand_total_format
             )
             
-            # Apply conditional formatting to highlight red if |deviation| > 10%
-            worksheet.conditional_format(grand_total_row_idx, deviation_col_idx, 
-                                        grand_total_row_idx, deviation_col_idx, {
-                'type': 'cell',
-                'criteria': 'greater than',
-                'value': 10,
-                'format': red_deviation_format
-            })
+            
             worksheet.conditional_format(grand_total_row_idx, deviation_col_idx, 
                                         grand_total_row_idx, deviation_col_idx, {
                 'type': 'cell',
