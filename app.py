@@ -1879,28 +1879,48 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             # Using THE EXACT SAME fuzzy matching approach as your existing campaign processing
             # FUZZY MATCHING: Create a mapping from Campaign product names to Shopify product names
             # Using THE EXACT SAME fuzzy matching approach as your existing campaign processing
+            # IMPROVED FUZZY MATCHING: Create a mapping from Campaign product names to Shopify product names
             shopify_product_fuzzy_mapping = {}
                 
             # Get all unique campaign product names from df_campaign
             if df_campaign is not None and 'Canonical Product' in df_campaign.columns:
-                    campaign_products = df_campaign['Canonical Product'].unique().tolist()
+                campaign_products = df_campaign['Canonical Product'].unique().tolist()
+                
+                st.info(f"🔍 Starting improved matching for {len(campaign_products)} campaign products against {len(shopify_raw_product_names)} Shopify products...")
+                
+                # For each campaign product, find best match in Shopify products
+                for campaign_product in campaign_products:
+                    campaign_product_clean = str(campaign_product).strip()
+                    campaign_product_lower = campaign_product_clean.lower()
                     
-                    st.info(f"🔍 Starting fuzzy matching for {len(campaign_products)} campaign products against {len(shopify_raw_product_names)} Shopify products...")
-                    
-                    # For each campaign product, find best match in Shopify products
-                    for campaign_product in campaign_products:
-                        campaign_product_clean = str(campaign_product).strip()
+                    # STEP 1: Try SUBSTRING matching first (most reliable)
+                    matched = False
+                    for shopify_name in shopify_raw_product_names:
+                        shopify_name_lower = shopify_name.lower().strip()
                         
-                        # CHANGED: Make it case-insensitive by converting both to lowercase
-                        campaign_product_lower = campaign_product_clean.lower()
+                        # If campaign name is contained in Shopify name, it's a match!
+                        if campaign_product_lower in shopify_name_lower:
+                            shopify_product_fuzzy_mapping[campaign_product_clean] = shopify_name
+                            st.success(f"✅ Substring Match: '{campaign_product_clean}' → '{shopify_name}'")
+                            matched = True
+                            break
+                        
+                        # Also check reverse: if Shopify name is contained in campaign name
+                        if shopify_name_lower in campaign_product_lower:
+                            shopify_product_fuzzy_mapping[campaign_product_clean] = shopify_name
+                            st.success(f"✅ Reverse Substring Match: '{campaign_product_clean}' → '{shopify_name}'")
+                            matched = True
+                            break
+                    
+                    # STEP 2: If no substring match, try fuzzy matching
+                    if not matched:
                         shopify_names_lower = [name.lower() for name in shopify_raw_product_names]
                         
-                        # Use the SAME fuzzy matching function and threshold (85) that's working in your campaign processing
                         result = process.extractOne(
-                            campaign_product_lower,  # CHANGED: Use lowercase version
-                            shopify_names_lower,      # CHANGED: Match against lowercase versions
+                            campaign_product_lower,
+                            shopify_names_lower,
                             scorer=fuzz.token_sort_ratio, 
-                            score_cutoff=85  # Same threshold as your campaign fuzzy matching
+                            score_cutoff=85
                         )
                         
                         if result:
@@ -1912,7 +1932,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                             matched_shopify_product = shopify_raw_product_names[matched_index]
                             
                             shopify_product_fuzzy_mapping[campaign_product_clean] = matched_shopify_product
-                            st.success(f"✅ Matched ({match_score}%): '{campaign_product_clean}' → '{matched_shopify_product}'")
+                            st.success(f"✅ Fuzzy Match ({match_score}%): '{campaign_product_clean}' → '{matched_shopify_product}'")
                         else:
                             st.warning(f"⚠️ No match found for campaign product: '{campaign_product_clean}'")
         # Define base columns for staff (CHANGED: "Cost Per Purchase" to "C.P.P" and "Break Even Point" to "B.E")
