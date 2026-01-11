@@ -539,9 +539,24 @@ if shopify_files:
         def fuzzy_match_to_campaign(name, choices, cutoff=85):
             if not choices:
                 return name
+            name_lower = name.lower().strip()
+    
+    # STEP 1: Try SUBSTRING matching first (most reliable for your use case)
+    # Check if the Shopify product name CONTAINS the campaign product name
+            for choice in choices:
+               choice_lower = choice.lower().strip()
+        
+        # If campaign name is fully contained in Shopify name, it's a match!
+               if name_lower in choice_lower:
+                  return choice
+        
+        # Also check reverse: if Shopify name is contained in campaign name
+               if choice_lower in name_lower:
+                  return choice
+    
+    # STEP 2: If no substring match, fall back to fuzzy matching
             result = process.extractOne(name, choices, scorer=fuzz.token_sort_ratio, score_cutoff=cutoff)
             return result[0] if result else name
-
         # Apply fuzzy matching for Shopify → Campaign
         df_shopify["Canonical Product"] = df_shopify["Product Name"].apply(
             lambda x: fuzzy_match_to_campaign(x, campaign_products)
