@@ -1940,7 +1940,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         
         # Define staff metrics (simplified - only 6 metrics per date for campaigns)
         # CHANGED: "Cost Per Purchase (USD)" to "C.P.P (USD)"
-        date_metrics = ["Delivery status","Amount Spent (USD)", "Purchases", "C.P.P (USD)", "Avg Price", "Delivery Rate", "Score"]
+        date_metrics = ["Delivery status", "Amount Spent (USD)", "Purchases", "Avg Price", "Delivery Rate", "Product Cost Input", "Score"]
         
         # Build column structure WITH SEPARATOR COLUMNS
         # Build column structure WITH SEPARATOR COLUMNS AND SPACE BEFORE LAST DATE
@@ -2142,7 +2142,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 {'level': 1, 'collapsed': True, 'hidden': True}
             )
         
-        # STEP 3: Create LEVEL 2 - Individual date groups
+        # STEP 3: Create LEVEL 2 - Individual date groups (Score is LAST, so it stays visible)
         for date in unique_dates:
             # Find where this date's columns start
             date_col_start = None
@@ -2152,8 +2152,9 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                     break
             
             if date_col_start is not None:
-                # Group this date's 7 columns
-                date_col_end = date_col_start + 6  # 7 columns (0-6 = 7 metrics)
+                # Group first 6 columns (Delivery status through Product Cost Input)
+                # Score column (7th) stays OUTSIDE the group so it's visible when collapsed
+                date_col_end = date_col_start + 5  # 6 columns (0-5 = 6 metrics, excluding Score)
                 
                 worksheet.set_column(
                     date_col_start,
@@ -2171,8 +2172,9 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 break
         
         if total_col_start is not None:
-            # Group all 7 Total columns
-            total_col_end = total_col_start + 6  # 7 Total columns
+            # Group first 6 Total columns (excluding Score)
+            # Total Score column stays OUTSIDE the group so it's visible when collapsed
+            total_col_end = total_col_start + 5  # 6 Total columns (excluding Score)
             
             worksheet.set_column(
                 total_col_start,
