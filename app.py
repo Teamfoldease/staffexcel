@@ -1940,7 +1940,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         
         # Define staff metrics (simplified - only 6 metrics per date for campaigns)
         # CHANGED: "Cost Per Purchase (USD)" to "C.P.P (USD)"
-        date_metrics = ["Delivery status", "Amount Spent (USD)", "Purchases", "Avg Price", "Delivery Rate", "Product Cost Input", "Score"]
+        date_metrics = ["Delivery status", "Amount Spent (USD)", "Purchases","C.P.P (USD)", "Avg Price", "Delivery Rate", "Product Cost Input", "Score"]
         
         # Build column structure WITH SEPARATOR COLUMNS
         # Build column structure WITH SEPARATOR COLUMNS AND SPACE BEFORE LAST DATE
