@@ -2082,30 +2082,101 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 safe_write(worksheet, 0, col_num, col_name, header_format)
 
         # SET UP COLUMN GROUPING
-        start_col = 7  # After base columns + separator (now 6 base columns + 1 separator)
+        master_start_col = 7  # Column H (after A-F base + G separator)
+        
+        # Find where Total columns end (last non-remark column)
+        master_end_col = len(all_columns) - 1  # Assuming Remark is last
+        
+        # Find the actual end before Remark column
+        for i, col in enumerate(all_columns):
+            if col == "Remark":
+                master_end_col = i - 1
+                break
+        
+        # STEP 2: Create LEVEL 1 - Master group (collapsed by default)
+        worksheet.set_column(
+            master_start_col,
+            master_end_col,
+            12,
+            None,
+            {'level': 1, 'collapsed': True, 'hidden': True}
+        )
+        
+        # STEP 3: Create LEVEL 2 - Individual date groups
+        master_start_col = 7  # Column H (after A-F base + G separator)
+        
+        # Find where Total columns end (last non-remark column)
+        master_end_col = len(all_columns) - 1  # Assuming Remark is last
+        
+        # Find the actual end before Remark column
+        for i, col in enumerate(all_columns):
+            if col == "Remark":
+                master_end_col = i - 1
+                break
+        
+        # STEP 2: Create LEVEL 1 - Master group (collapsed by default)
+        worksheet.set_column(
+            master_start_col,
+            master_end_col,
+            12,
+            None,
+            {'level': 1, 'collapsed': True, 'hidden': True}
+        )
+        
+        # STEP 3: Create LEVEL 2 - Individual date groups
+        master_start_col = 7  # Column H (after A-F base + G separator)
+        
+        # Find where Total columns end (last non-remark column)
+        master_end_col = len(all_columns) - 1  # Assuming Remark is last
+        
+        # Find the actual end before Remark column
+        for i, col in enumerate(all_columns):
+            if col == "Remark":
+                master_end_col = i - 1
+                break
+        
+        # STEP 2: Create LEVEL 1 - Master group (collapsed by default)
+        worksheet.set_column(
+            master_start_col,
+            master_end_col,
+            12,
+            None,
+            {'level': 1, 'collapsed': True, 'hidden': True}
+        )
+        
+        # STEP 3: Create LEVEL 2 - Individual date groups
+        start_col = 7  # Start after base columns + separator
         total_columns = len(all_columns)
         
-        group_level = 1
         while start_col < total_columns:
+            # Skip separator columns
             if start_col < len(all_columns) and all_columns[start_col].startswith("SEPARATOR_"):
                 start_col += 1
                 continue
-                
+            
+            # Check if we've reached Total columns or Remark
+            if start_col < len(all_columns):
+                current_col_name = all_columns[start_col]
+                if current_col_name.startswith("Total_") or current_col_name == "Remark":
+                    break  # Stop grouping at Total columns
+            
+            # Count date-specific columns (7 metrics per date)
             data_cols_found = 0
             end_col = start_col
-            while end_col < total_columns and data_cols_found < 7:  # 7 metrics per date
+            while end_col < total_columns and data_cols_found < 7:
                 if not all_columns[end_col].startswith("SEPARATOR_"):
                     data_cols_found += 1
                 if data_cols_found < 7:
                     end_col += 1
             
+            # Create Level 2 group for this date (nested inside Level 1)
             if end_col < total_columns:
                 worksheet.set_column(
-                    start_col, 
-                    end_col - 1, 
-                    12, 
-                    None, 
-                    {'level': group_level, 'collapsed': True, 'hidden': True}
+                    start_col,
+                    end_col - 1,
+                    12,
+                    None,
+                    {'level': 2, 'collapsed': True, 'hidden': True}
                 )
             
             start_col = end_col + 1
