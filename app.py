@@ -1943,6 +1943,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         date_metrics = ["Delivery status","Amount Spent (USD)", "Purchases", "C.P.P (USD)", "Avg Price", "Delivery Rate", "Score"]
         
         # Build column structure WITH SEPARATOR COLUMNS
+        # Build column structure WITH SEPARATOR COLUMNS AND SPACE BEFORE LAST DATE
         all_columns = base_columns.copy()
         all_columns.append("SEPARATOR_AFTER_BASE")
         
@@ -1955,6 +1956,10 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         # Add total columns
         for metric in date_metrics:
             all_columns.append(f"Total_{metric}")
+        
+        # ADD SEPARATOR BEFORE LAST DATE AMOUNT SPENT (THIS IS THE SPACE YOU WANT)
+        all_columns.append("SEPARATOR_BEFORE_LAST_DATE")
+        
         all_columns.append("Last Date Amount Spent (USD)")
         
         # NEW: Add separator and 3 new comparison columns
@@ -2103,83 +2108,79 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         )
         
         # STEP 3: Create LEVEL 2 - Individual date groups
-        master_start_col = 7  # Column H (after A-F base + G separator)
+        # SET UP NESTED COLUMN GROUPING
+        # MASTER GROUP: Contains ALL date columns + Total columns
+        # LEVEL 2: Individual date groups (7 cols each) + Total columns group (7 cols)
+        # OUTSIDE: Last Date Amount Spent, Purchases (Campaign), Net Items Sold, Deviation, Remark
         
-        # Find where Total columns end (last non-remark column)
-        master_end_col = len(all_columns) - 1  # Assuming Remark is last
+        # STEP 1: Find where "SEPARATOR_BEFORE_LAST_DATE" is (this marks end of master group)
+        master_start_col = 7  # Column H (after base + separator)
+        master_end_col = None
         
-        # Find the actual end before Remark column
         for i, col in enumerate(all_columns):
-            if col == "Remark":
-                master_end_col = i - 1
+            if col == "SEPARATOR_BEFORE_LAST_DATE":
+                master_end_col = i - 1  # End just before this separator
                 break
         
-        # STEP 2: Create LEVEL 1 - Master group (collapsed by default)
-        worksheet.set_column(
-            master_start_col,
-            master_end_col,
-            12,
-            None,
-            {'level': 1, 'collapsed': True, 'hidden': True}
-        )
+        if master_end_col is None:
+            # Fallback: find "Last Date Amount Spent" and go back
+            for i, col in enumerate(all_columns):
+                if col == "Last Date Amount Spent (USD)":
+                    master_end_col = i - 1
+                    # Skip separator if present
+                    if master_end_col >= 0 and all_columns[master_end_col].startswith("SEPARATOR_"):
+                        master_end_col -= 1
+                    break
+        
+        # STEP 2: Create LEVEL 1 - Master group (ALL date columns + Total columns)
+        if master_end_col is not None and master_end_col > master_start_col:
+            worksheet.set_column(
+                master_start_col,
+                master_end_col,
+                12,
+                None,
+                {'level': 1, 'collapsed': True, 'hidden': True}
+            )
         
         # STEP 3: Create LEVEL 2 - Individual date groups
-        master_start_col = 7  # Column H (after A-F base + G separator)
-        
-        # Find where Total columns end (last non-remark column)
-        master_end_col = len(all_columns) - 1  # Assuming Remark is last
-        
-        # Find the actual end before Remark column
-        for i, col in enumerate(all_columns):
-            if col == "Remark":
-                master_end_col = i - 1
-                break
-        
-        # STEP 2: Create LEVEL 1 - Master group (collapsed by default)
-        worksheet.set_column(
-            master_start_col,
-            master_end_col,
-            12,
-            None,
-            {'level': 1, 'collapsed': True, 'hidden': True}
-        )
-        
-        # STEP 3: Create LEVEL 2 - Individual date groups
-        start_col = 7  # Start after base columns + separator
-        total_columns = len(all_columns)
-        
-        while start_col < total_columns:
-            # Skip separator columns
-            if start_col < len(all_columns) and all_columns[start_col].startswith("SEPARATOR_"):
-                start_col += 1
-                continue
+        for date in unique_dates:
+            # Find where this date's columns start
+            date_col_start = None
+            for i, col in enumerate(all_columns):
+                if col == f"{date}_{date_metrics[0]}":  # First metric of this date
+                    date_col_start = i
+                    break
             
-            # Check if we've reached Total columns or Remark
-            if start_col < len(all_columns):
-                current_col_name = all_columns[start_col]
-                if current_col_name.startswith("Total_") or current_col_name == "Remark":
-                    break  # Stop grouping at Total columns
-            
-            # Count date-specific columns (7 metrics per date)
-            data_cols_found = 0
-            end_col = start_col
-            while end_col < total_columns and data_cols_found < 7:
-                if not all_columns[end_col].startswith("SEPARATOR_"):
-                    data_cols_found += 1
-                if data_cols_found < 7:
-                    end_col += 1
-            
-            # Create Level 2 group for this date (nested inside Level 1)
-            if end_col < total_columns:
+            if date_col_start is not None:
+                # Group this date's 7 columns
+                date_col_end = date_col_start + 6  # 7 columns (0-6 = 7 metrics)
+                
                 worksheet.set_column(
-                    start_col,
-                    end_col - 1,
+                    date_col_start,
+                    date_col_end,
                     12,
                     None,
                     {'level': 2, 'collapsed': True, 'hidden': True}
                 )
+        
+        # STEP 4: Group Total columns as a separate Level 2 group
+        total_col_start = None
+        for i, col in enumerate(all_columns):
+            if col == f"Total_{date_metrics[0]}":  # First Total metric
+                total_col_start = i
+                break
+        
+        if total_col_start is not None:
+            # Group all 7 Total columns
+            total_col_end = total_col_start + 6  # 7 Total columns
             
-            start_col = end_col + 1
+            worksheet.set_column(
+                total_col_start,
+                total_col_end,
+                12,
+                None,
+                {'level': 2, 'collapsed': True, 'hidden': True}
+            )
         
         # Set base column widths
         worksheet.set_column(0, 0, 25)  # Product Name
