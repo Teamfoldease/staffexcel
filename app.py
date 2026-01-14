@@ -78,6 +78,25 @@ def standardize_campaign_columns(df):
     """Standardize campaign column names and handle currency conversion"""
     df = df.copy()
     
+    # NEW: Detect and track currency type based on original column name
+    currency_type = None  # Will be 'USD' or 'INR'
+    
+    # Check for amount spent column to determine currency
+    for col in df.columns:
+        if 'amount spent' in col.lower():
+            if 'usd' in col.lower():
+                currency_type = 'USD'
+            elif 'inr' in col.lower():
+                currency_type = 'INR'
+            break
+    
+    # If no currency specified in column name, assume INR (as per your current logic)
+    if currency_type is None:
+        for col in df.columns:
+            if 'amount spent' in col.lower():
+                currency_type = 'INR'
+                break
+    
     # Find and preserve original date column
     date_col = find_date_column(df)
     if date_col:
@@ -164,7 +183,8 @@ def standardize_campaign_columns(df):
         # Remove original column if it's different
         if amount_col != 'Amount spent (USD)':
             df = df.drop(columns=[amount_col])
-    
+    if currency_type:
+        df['Currency Account'] = currency_type
     return df
 
 def merge_campaign_files(files):
@@ -193,7 +213,9 @@ def merge_campaign_files(files):
     group_cols = ["Campaign name"]
     if 'Date' in merged_df.columns:
         group_cols.append('Date')
-    
+    # NEW: Add Currency Account to grouping to preserve it
+    if 'Currency Account' in merged_df.columns:
+        group_cols.append('Currency Account')
     required_cols = group_cols + ["Amount spent (USD)"]
     if all(col in merged_df.columns for col in required_cols):
         # Check if Purchases column exists
@@ -427,6 +449,9 @@ if campaign_files:
                     row["Date"] = campaign.get("Date", "")
                 if has_delivery_status:
                     row["Delivery status"] = campaign.get("Delivery status", "")
+                    
+                if "Currency Account" in campaign:
+                    row["Currency Account"] = campaign.get("Currency Account", "")
                 final_campaign_data.append(row)
 
         df_final_campaign = pd.DataFrame(final_campaign_data)
@@ -1936,7 +1961,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                         else:
                             st.warning(f"⚠️ No match found for campaign product: '{campaign_product_clean}'")
         # Define base columns for staff (CHANGED: "Cost Per Purchase" to "C.P.P" and "Break Even Point" to "B.E")
-        base_columns = ["Product Name", "Campaign Name", "Total Amount Spent (USD)", "Purchases", "C.P.P", "B.E"]
+        base_columns = ["Product Name", "Campaign Name", "Total Amount Spent (USD)", "Purchases", "C.P.P", "B.E", "Currency Account"]
         
         # Define staff metrics (simplified - only 6 metrics per date for campaigns)
         # CHANGED: "Cost Per Purchase (USD)" to "C.P.P (USD)"
@@ -2087,7 +2112,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 safe_write(worksheet, 0, col_num, col_name, header_format)
 
         # SET UP COLUMN GROUPING
-        master_start_col = 7  # Column H (after A-F base + G separator)
+        master_start_col = 8  # Column H (after A-F base + G separator)
         
         # Find where Total columns end (last non-remark column)
         master_end_col = len(all_columns) - 1  # Assuming Remark is last
@@ -2139,7 +2164,7 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 master_end_col,
                 12,
                 None,
-                {'level': 1, 'collapsed': True, 'hidden': True}
+                {'level': 1, 'collapsed': False, 'hidden': False}
             )
         
         # STEP 3: Create LEVEL 2 - Individual date groups (Score is LAST, so it stays visible)
@@ -2191,7 +2216,8 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
         worksheet.set_column(3, 3, 15)  # Purchases
         worksheet.set_column(4, 4, 18)  # C.P.P
         worksheet.set_column(5, 5, 22)  # B.E
-        worksheet.set_column(6, 6, 3)   # Separator column
+        worksheet.set_column(6, 6, 18)  # Currency Account (NEW)
+        worksheet.set_column(7, 7, 3)   # Separator column (moved from 6 to 7)
         
         # Set width for new comparison columns
         purchases_campaign_col_idx = all_columns.index("Purchases (Campaign)")
@@ -2331,6 +2357,13 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
             safe_write(worksheet, product_total_row_idx, 2, round(total_amount_spent_for_product, 2), product_total_format)
             safe_write(worksheet, product_total_row_idx, 3, total_purchases_for_product, product_total_format)
             
+            # Leave C.P.P and B.E empty for product total (will be calculated)
+            safe_write(worksheet, product_total_row_idx, 4, "", product_total_format)
+            safe_write(worksheet, product_total_row_idx, 5, "", product_total_format)
+            
+            # NEW: Currency Account - leave empty for product total (multiple currencies may be combined)
+            safe_write(worksheet, product_total_row_idx, 6, "", product_total_format)
+            
             # NEW: Add comparison columns for product total
             purchases_campaign_col_idx = all_columns.index("Purchases (Campaign)")
             net_items_shopify_col_idx = all_columns.index("Net Items Sold (Shopify)")
@@ -2408,6 +2441,10 @@ def convert_final_campaign_to_excel_staff_with_date_columns_fixed(df, shopify_df
                 safe_write(worksheet, campaign_row_idx, 3, "", campaign_format)
                 safe_write(worksheet, campaign_row_idx, 4, "", campaign_format)
                 safe_write(worksheet, campaign_row_idx, 5, "", campaign_format)
+                
+                # NEW: Write Currency Account value
+                currency_account = campaign_group.get("Currency Account", "").iloc[0] if "Currency Account" in campaign_group.columns and not campaign_group.empty else ""
+                safe_write(worksheet, campaign_row_idx, 6, currency_account, campaign_format)
                 
                 # NEW: Leave comparison columns empty for campaigns (only at product level)
                 purchases_campaign_col_idx = all_columns.index("Purchases (Campaign)")
